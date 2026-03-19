@@ -95,6 +95,45 @@ export async function handleMessages(
 }
 
 /**
+ * 从 SSE 事件中提取 usage 信息（兼容多种 API 格式）
+ */
+function extractUsageFromSse(json: any): { input_tokens: number; output_tokens: number } {
+  // Claude/智谱 GLM 格式: message_start 事件中的 message.usage
+  if (json.type === 'message_start' && json.message?.usage) {
+    return {
+      input_tokens: json.message.usage.input_tokens || 0,
+      output_tokens: json.message.usage.output_tokens || 0,
+    };
+  }
+
+  // Claude/智谱 GLM 格式: message_delta 事件中的 usage
+  if (json.type === 'message_delta' && json.usage) {
+    return {
+      input_tokens: json.usage.input_tokens || 0,
+      output_tokens: json.usage.output_tokens || 0,
+    };
+  }
+
+  // OpenAI / Anthropic 格式
+  if (json.usage) {
+    return {
+      input_tokens: json.usage.input_tokens || json.usage.prompt_tokens || 0,
+      output_tokens: json.usage.output_tokens || json.usage.completion_tokens || 0,
+    };
+  }
+
+  // 智谱 GLM 格式 (usage 在顶层)
+  if (json.input_tokens !== undefined || json.output_tokens !== undefined) {
+    return {
+      input_tokens: json.input_tokens || 0,
+      output_tokens: json.output_tokens || 0,
+    };
+  }
+
+  return { input_tokens: 0, output_tokens: 0 };
+}
+
+/**
  * 处理流式响应
  */
 async function handleStreamingResponse(
@@ -105,6 +144,15 @@ async function handleStreamingResponse(
 ): Promise<Response> {
   const firstTokenTime = { recorded: false, value: 0 };
   const usage = { input_tokens: 0, output_tokens: 0 };
+  const allEvents: any[] = [];  // 收集所有事件用于记录完整响应
+
+  // 提取上游响应头
+  const upstreamHeaders: Record<string, string> = {};
+  if (response.headers) {
+    for (const [key, value] of Object.entries(response.headers)) {
+      upstreamHeaders[key] = String(value);
+    }
+  }
 
   // 使用 ReadableStream 包装 Node.js stream
   const nodeStream = response.data;
@@ -117,8 +165,11 @@ async function handleStreamingResponse(
           const lines = text.split('\n').filter((line: string) => line.trim());
 
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
+            // 处理 data: 行（支持 "data:" 和 "data: " 两种格式）
+            if (line.startsWith('data:')) {
+              // 提取 data 后的内容（跳过可能的空格）
+              const data = line.startsWith('data: ') ? line.slice(6) : line.slice(5);
+
               if (data === '[DONE]') {
                 controller.enqueue(new TextEncoder().encode('data: [DONE]\n\n'));
                 continue;
@@ -126,18 +177,28 @@ async function handleStreamingResponse(
 
               try {
                 const json = JSON.parse(data);
+                allEvents.push(json);
 
-                // 记录首个 token 时间
-                if (!firstTokenTime.recorded && json.delta?.text) {
-                  firstTokenTime.recorded = true;
-                  firstTokenTime.value = Date.now() - startTime;
-                  await recordSseEvent(requestId, { type: 'first_token', latency: firstTokenTime.value });
+                // 记录首个 token 时间（兼容多种格式）
+                if (!firstTokenTime.recorded) {
+                  // Claude 格式: content_block_delta 中的 delta.text 或 delta.thinking
+                  const hasContent =
+                    json.delta?.text ||
+                    json.delta?.thinking ||
+                    json.choices?.[0]?.delta?.content ||
+                    json.content;
+                  if (hasContent) {
+                    firstTokenTime.recorded = true;
+                    firstTokenTime.value = Date.now() - startTime;
+                    await recordSseEvent(requestId, { type: 'first_token', latency: firstTokenTime.value });
+                  }
                 }
 
-                // 提取 usage
-                if (json.usage) {
-                  usage.input_tokens = json.usage.input_tokens || 0;
-                  usage.output_tokens = json.usage.output_tokens || 0;
+                // 提取 usage（兼容多种格式）
+                const extractedUsage = extractUsageFromSse(json);
+                if (extractedUsage.input_tokens > 0 || extractedUsage.output_tokens > 0) {
+                  usage.input_tokens = extractedUsage.input_tokens;
+                  usage.output_tokens = extractedUsage.output_tokens;
                 }
 
                 // 记录 SSE 事件
@@ -145,10 +206,12 @@ async function handleStreamingResponse(
 
                 // 广播 SSE 事件
                 broadcastSseEvent(requestId, json);
-              } catch {
-                // 忽略解析错误
+              } catch (parseError) {
+                // 记录解析错误以便调试
+                console.error('[SSE Parse Error] Failed to parse:', data.substring(0, 100));
               }
             }
+            // 转发所有行（包括 event: 行）
             controller.enqueue(new TextEncoder().encode(line + '\n'));
           }
         }
@@ -166,8 +229,8 @@ async function handleStreamingResponse(
       await updateRequestResponse({
         id: requestId,
         status: 200,
-        headers: {},
-        body: { usage },
+        headers: upstreamHeaders,
+        body: { usage, events: allEvents },
         latency_ms: Date.now() - startTime,
         first_token_ms: firstTokenTime.value,
         input_tokens: usage.input_tokens,
