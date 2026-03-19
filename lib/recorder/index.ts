@@ -1,9 +1,16 @@
 import { RequestStore, RequestLog } from './store';
 import path from 'path';
 
-// 创建全局 store 实例
-const dbPath = path.resolve(process.cwd(), 'db/inspector.sqlite');
-export const requestStore = new RequestStore(dbPath);
+// 懒加载 store 实例
+let _requestStore: RequestStore | null = null;
+
+function getStore(): RequestStore {
+  if (!_requestStore) {
+    const dbPath = path.resolve(process.cwd(), 'db/inspector.sqlite');
+    _requestStore = new RequestStore(dbPath);
+  }
+  return _requestStore;
+}
 
 /**
  * 记录请求
@@ -40,7 +47,7 @@ export async function recordRequest(data: {
     cost_usd: 0,
     created_at: new Date().toISOString(),
   };
-  requestStore.insert(log);
+  getStore().insert(log);
 }
 
 /**
@@ -60,7 +67,8 @@ export async function updateRequestResponse(data: {
   model?: string;
   cost_usd?: number;
 }): Promise<void> {
-  const db = (requestStore as any).db as any;
+  const store = getStore() as any;
+  const db = store.db as any;
   const stmt = db.prepare(`
     UPDATE request_logs
     SET
@@ -100,7 +108,8 @@ export async function updateRequestResponse(data: {
  * 记录 SSE 事件
  */
 export async function recordSseEvent(requestId: string, event: any): Promise<void> {
-  const db = (requestStore as any).db as any;
+  const store = getStore() as any;
+  const db = store.db as any;
 
   // 获取现 streaming_events
   const current = db.prepare('SELECT streaming_events FROM request_logs WHERE id = ?').get(requestId) as any;
@@ -132,7 +141,8 @@ export async function recordSseEvent(requestId: string, event: any): Promise<voi
  * 记录错误
  */
 export async function recordError(requestId: string, error: string): Promise<void> {
-  const db = (requestStore as any).db as any;
+  const store = getStore() as any;
+  const db = store.db as any;
   const stmt = db.prepare(`
     UPDATE request_logs
     SET error_message = ?, status_code = 500

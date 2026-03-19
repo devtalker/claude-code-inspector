@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import { CREATE_TABLES } from './schema';
 import path from 'path';
+import fs from 'fs';
 
 export interface RequestLog {
   id: string;
@@ -31,6 +32,11 @@ export class RequestStore {
 
   constructor(dbPath: string) {
     const fullPath = path.resolve(dbPath);
+    // 确保数据库目录存在
+    const dir = path.dirname(fullPath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     this.db = new Database(fullPath);
     this.db.pragma('journal_mode = WAL');
     this.initialize();
