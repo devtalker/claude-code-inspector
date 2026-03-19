@@ -20,7 +20,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install --foreground-scripts
+        run: |
+          echo "npm registry: $(npm config get registry)"
+          npm install --legacy-peer-deps
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
 
