@@ -4,7 +4,7 @@ import path from 'path';
 // 懒加载 store 实例
 let _requestStore: RequestStore | null = null;
 
-function getStore(): RequestStore {
+export function getStore(): RequestStore {
   if (!_requestStore) {
     const dbPath = path.resolve(process.cwd(), 'db/inspector.sqlite');
     _requestStore = new RequestStore(dbPath);
