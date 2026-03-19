@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requestStore } from '@/lib/recorder';
+import { getStore } from '@/lib/recorder';
 
 /**
  * 导出请求数据为 JSON 或 CSV 格式
@@ -15,10 +15,10 @@ export async function GET(request: Request) {
     if (ids) {
       // 导出指定 ID 的请求
       const idList = ids.split(',');
-      requests = idList.map((id) => requestStore.findById(id.trim())).filter(Boolean) as any[];
+      requests = idList.map((id) => getStore().findById(id.trim())).filter(Boolean) as any[];
     } else {
       // 导出最近的请求
-      requests = requestStore.getRecentRequests(500);
+      requests = getStore().getRecentRequests(500);
     }
 
     // 转换为前端友好的格式

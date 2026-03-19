@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { requestStore } from '@/lib/recorder';
+import { getStore } from '@/lib/recorder';
 
 /**
  * 获取单个请求的详细信息
@@ -10,7 +10,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const req = requestStore.findById(id);
+    const req = getStore().findById(id);
 
     if (!req) {
       return NextResponse.json({ error: 'Request not found' }, { status: 404 });

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { requestStore } from '@/lib/recorder';
+import { getStore } from '@/lib/recorder';
 
 /**
  * 获取最近的请求列表
  */
 export async function GET() {
   try {
-    const requests = requestStore.getRecentRequests(100);
+    const requests = getStore().getRecentRequests(100);
     // 转换为前端需要的格式
     const formattedRequests = requests.map((r: any) => ({
       id: r.id,
