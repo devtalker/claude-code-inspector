@@ -2,9 +2,21 @@
   "name": "claude-code-inspector",
   "version": "0.1.0",
   "private": false,
+  "bin": {
+    "cc-inspector": "./bin/cli.js"
+  },
   "publishConfig": {
     "registry": "https://registry.npmjs.org"
   },
+  "files": [
+    "app",
+    "lib",
+    "components",
+    "bin",
+    "public",
+    "next.config.ts",
+    "server.ts"
+  ],
   "scripts": {
     "dev": "tsx server.ts",
     "build": "next build",
