@@ -1,5 +1,7 @@
 # CC Inspector
 
+> 🌐 Read in other languages: [English](README.md) | [简体中文](README.zh.md) | [日本語](README.ja.md)
+
 CC Inspector is a developer tool for monitoring and logging Claude Code API requests. It intercepts `/v1/messages` requests through a proxy, records detailed request/response data, and provides a real-time visualization dashboard.
 
 ## Installation
