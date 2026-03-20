@@ -1,13 +1,58 @@
 #!/usr/bin/env node
 
 const path = require('path');
+const fs = require('fs');
 const { createServer } = require('http');
 const next = require('next');
 const { WebSocketServer } = require('ws');
 const { parse } = require('url');
 
 // 切换到包的安装目录，确保 Next.js 能正确找到文件
-process.chdir(path.resolve(__dirname, '..'));
+const installDir = path.resolve(__dirname, '..');
+process.chdir(installDir);
+
+// 临时重命名 tsconfig.json，防止 Next.js 尝试安装 TypeScript 依赖
+// 但创建一个包含路径别名的简化版本，确保模块解析正确
+const tsconfigPath = path.join(installDir, 'tsconfig.json');
+const tsconfigBackupPath = path.join(installDir, 'tsconfig.json.bak');
+let tsconfigMoved = false;
+
+if (fs.existsSync(tsconfigPath)) {
+  fs.renameSync(tsconfigPath, tsconfigBackupPath);
+  tsconfigMoved = true;
+  // 创建一个简化的 tsconfig.json，只包含路径别名配置
+  const minimalTsconfig = {
+    compilerOptions: {
+      baseUrl: '.',
+      paths: {
+        '@/*': ['./*']
+      }
+    }
+  };
+  fs.writeFileSync(tsconfigPath, JSON.stringify(minimalTsconfig, null, 2));
+
+  // 进程退出时恢复原始文件
+  process.on('exit', () => {
+    if (tsconfigMoved && fs.existsSync(tsconfigBackupPath)) {
+      fs.renameSync(tsconfigBackupPath, tsconfigPath);
+    }
+  });
+
+  // 捕获信号，确保恢复文件
+  process.on('SIGINT', () => {
+    if (tsconfigMoved && fs.existsSync(tsconfigBackupPath)) {
+      fs.renameSync(tsconfigBackupPath, tsconfigPath);
+    }
+    process.exit();
+  });
+
+  process.on('SIGTERM', () => {
+    if (tsconfigMoved && fs.existsSync(tsconfigBackupPath)) {
+      fs.renameSync(tsconfigBackupPath, tsconfigPath);
+    }
+    process.exit();
+  });
+}
 
 const port = parseInt(process.env.PORT || '3000', 10);
 const dev = process.env.NODE_ENV !== 'production';
