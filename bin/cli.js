@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+const { execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { createServer } = require('http');
@@ -11,8 +12,31 @@ const { parse } = require('url');
 const installDir = path.resolve(__dirname, '..');
 process.chdir(installDir);
 
-// 临时重命名 tsconfig.json，防止 Next.js 尝试安装 TypeScript 依赖
-// 但创建一个包含路径别名的简化版本，确保模块解析正确
+// 检查并安装 @types/node 和 @types/react，防止 Next.js 自动安装
+// 使用 npm 而不是 yarn 来避免 eslint-visitor-keys 兼容性问题
+function installTypesIfNeeded() {
+  try {
+    const typesNodePath = path.join(installDir, 'node_modules', '@types', 'node');
+    const typesReactPath = path.join(installDir, 'node_modules', '@types', 'react');
+
+    if (!fs.existsSync(typesNodePath) || !fs.existsSync(typesReactPath)) {
+      console.log('[CLI] Installing @types/node and @types/react...');
+      execSync('npm install --no-save @types/node @types/react', {
+        stdio: 'inherit',
+        env: { ...process.env, npm_config_legacy_peer_deps: 'true' }
+      });
+    }
+  } catch (error) {
+    console.error('[CLI] Failed to install types:', error.message);
+  }
+}
+
+installTypesIfNeeded();
+
+// 临时重命名 tsconfig.json，防止 Next.js 尝试自动安装依赖
+// Next.js 会检测 tsconfig.json 并尝试安装 @types/node 和 @types/react
+// 但由于 eslint-visitor-keys 兼容性问题 (Node 23)，yarn 安装会失败
+// 解决方案：移动原始 tsconfig.json，创建一个简化版仅包含路径别名
 const tsconfigPath = path.join(installDir, 'tsconfig.json');
 const tsconfigBackupPath = path.join(installDir, 'tsconfig.json.bak');
 let tsconfigMoved = false;
