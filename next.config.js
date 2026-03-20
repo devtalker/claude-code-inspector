@@ -1,6 +1,5 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   // 禁用 HMR 的自动刷新，防止 WebSocket 错误时页面重新加载
   reactStrictMode: false,
   // 开发服务器配置 - 防止页面被 unloaded
@@ -19,9 +18,9 @@ const nextConfig: NextConfig = {
   //  webpack 配置
   webpack: (config, { dev, isServer }) => {
     if (dev) {
-      // 禁用 HMR 插件
+      // 禁用 HMR 的自动刷新
       config.plugins = config.plugins.filter(
-        (plugin: any) => plugin?.constructor?.name !== 'HotModuleReplacementPlugin'
+        (plugin) => plugin?.constructor?.name !== 'HotModuleReplacementPlugin'
       );
 
       // 禁用所有文件监听
@@ -39,7 +38,7 @@ const nextConfig: NextConfig = {
           '**/*.log',
           '**/dist/**',
           '**/build/**',
-          '**/*.json', // 忽略 JSON 文件
+          '**/*.json',
         ],
         // 禁用轮询
         poll: false,
@@ -56,4 +55,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
