@@ -1,9 +1,13 @@
 #!/usr/bin/env node
 
+const path = require('path');
 const { createServer } = require('http');
 const next = require('next');
 const { WebSocketServer } = require('ws');
 const { parse } = require('url');
+
+// 切换到包的安装目录，确保 Next.js 能正确找到文件
+process.chdir(path.resolve(__dirname, '..'));
 
 const port = parseInt(process.env.PORT || '3000', 10);
 const dev = process.env.NODE_ENV !== 'production';
